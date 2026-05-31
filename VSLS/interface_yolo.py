@@ -39,7 +39,7 @@ class YoloInterface:
      
         pass
     def set_BBoxAnnotator(self):
-        self.BOUNDING_BOX_ANNOTATOR = sv.BoundingBoxAnnotator(thickness=1)
+        self.BOUNDING_BOX_ANNOTATOR = sv.BoxAnnotator(thickness=1)
         # MASK_ANNOTATOR = sv.MaskAnnotator()
         self.LABEL_ANNOTATOR = LabelAnnotator(text_padding=4,
                                         text_scale=0.5,
