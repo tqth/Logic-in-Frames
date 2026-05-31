@@ -468,7 +468,7 @@ class VSLSUniversalGrounder:
                 +f"Question: {question}\n"
             )        
         
-        if self.backend == "llava" or self.backend == "internvl":
+        if self.backend == "llava" or self.backend == "internvl" or self.backend == "qwenvl":
             system_prompt = (
             "Analyze the following video frames, question and options:\n"
             f"Question: {question}\n"
@@ -483,7 +483,7 @@ class VSLSUniversalGrounder:
             )
 
         else:
-            raise ValueError("backend must be either 'llava' or 'gpt4'.")
+            raise ValueError("backend must be either 'llava', 'internvl', 'qwenvl' or 'gpt4'.")
 
         if options:
             system_prompt += f"Options: {options}\n"
