@@ -192,6 +192,127 @@ class YoloWorldInterface(YoloInterface):
         
         return anno_images
 
+# ============================================================
+# ADD THIS CLASS TO: VSLS/interface_yolo.py
+#
+# Requirements:
+#   pip install ultralytics supervision
+#
+# Usage (replaces YoloWorldInterface):
+#   from VSLS.interface_yolo import UltralyticsYOLOWorldInterface
+#   yolo_interface = UltralyticsYOLOWorldInterface(
+#       checkpoint_path="yolov8x-worldv2.pt",
+#       device="cuda:0"
+#   )
+# ============================================================
+
+from ultralytics import YOLOWorld as UltralyticsYOLOWorld
+
+
+class UltralyticsYOLOWorldInterface(YoloInterface):
+    def __init__(self, checkpoint_path: str = "yolov8x-worldv2.pt", device: str = "cuda:0"):
+        """
+        Initialize the Ultralytics YOLO-World model.
+        Drop-in replacement for YoloWorldInterface — no mmcv required.
+
+        Args:
+            checkpoint_path (str): Path to .pt checkpoint, or model name for auto-download.
+                                   E.g. "yolov8x-worldv2.pt" (~100MB, auto-downloaded on first run).
+            device (str): Device for inference (e.g., "cuda:0", "cpu").
+        """
+        self.checkpoint_path = checkpoint_path
+        self.device = device
+
+        self.model = UltralyticsYOLOWorld(checkpoint_path)
+        self.model.to(device)
+
+        # texts mirrors YoloWorldInterface.texts: list of [class_name] per index, plus a trailing [' ']
+        # populated by reparameterize_object_list()
+        self.texts = []
+
+        self.set_BBoxAnnotator()
+
+    # ------------------------------------------------------------------
+    # Public interface — identical signatures to YoloWorldInterface
+    # ------------------------------------------------------------------
+
+    def reparameterize_object_list(self, target_objects: List[str], cue_objects: List[str]):
+        """
+        Set the open-vocabulary class list for the YOLO-World model.
+
+        Args:
+            target_objects (List[str]): Primary objects to detect.
+            cue_objects    (List[str]): Contextual/cue objects.
+        """
+        combined = target_objects + cue_objects
+        # Keep same nested-list format as YoloWorldInterface so that
+        # interface_searcher.py can index: self.yolo.texts[label][0]
+        self.texts = [[obj.strip()] for obj in combined] + [[' ']]
+
+        # Ultralytics API: set_classes accepts a flat list of strings
+        self.model.set_classes([obj.strip() for obj in combined])
+
+    def inference_detector(self, images, max_dets: int = 50, score_threshold: float = 0.2, use_amp: bool = False):
+        """
+        Run detection on a batch of images (numpy arrays, BGR or RGB).
+        Returns the same format as YoloWorldInterface.inference_detector():
+            List[sv.Detections]  — one entry per image.
+
+        Args:
+            images          : List of np.ndarray images (H, W, 3).
+            max_dets        : Maximum detections to keep per image.
+            score_threshold : Confidence threshold.
+            use_amp         : Ignored (kept for API compatibility).
+        """
+        detections_inbatch = []
+
+        for image in images:
+            results = self.model.predict(
+                source=image,
+                conf=score_threshold,
+                max_det=max_dets,
+                device=self.device,
+                verbose=False,
+            )[0]
+
+            boxes = results.boxes
+            if boxes is None or len(boxes) == 0:
+                detections = sv.Detections.empty()
+            else:
+                xyxy       = boxes.xyxy.cpu().numpy()       
+                confidence = boxes.conf.cpu().numpy()        
+                class_id   = boxes.cls.cpu().numpy().astype(int)  
+
+                detections = sv.Detections(
+                    xyxy=xyxy,
+                    confidence=confidence,
+                    class_id=class_id,
+                )
+
+            detections_inbatch.append(detections)
+
+        self.detections_inbatch = detections_inbatch
+        return detections_inbatch
+
+    def inference(self, image, max_dets: int = 100, score_threshold: float = 0.3, use_amp: bool = False):
+        """Single-image wrapper (mirrors YoloWorldInterface.inference)."""
+        return self.inference_detector([image], max_dets=max_dets, score_threshold=score_threshold)[0]
+
+    def bbox_visualization(self, images, detections_inbatch):
+        """Identical to YoloWorldInterface.bbox_visualization."""
+        anno_images = []
+        for b, detections in enumerate(detections_inbatch):
+            labels = [
+                f"{self.texts[class_id][0]} {confidence:.2f}"
+                for class_id, confidence in zip(detections.class_id, detections.confidence)
+            ]
+            index = len(detections_inbatch) - 1
+            image = images[index]
+            anno_image = image.copy()
+            anno_image = self.BOUNDING_BOX_ANNOTATOR.annotate(anno_image, detections)
+            anno_image = self.LABEL_ANNOTATOR.annotate(anno_image, detections, labels=labels)
+            anno_images.append(anno_image)
+        return anno_images
 
 
 
