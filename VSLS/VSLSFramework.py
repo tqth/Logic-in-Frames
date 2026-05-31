@@ -24,7 +24,8 @@ from scipy.interpolate import UnivariateSpline
 from PIL import Image
 # Import custom VSLS interfaces
 from VSLS.interface_llm import VSLSUniversalGrounder
-from VSLS.interface_yolo import YoloWorldInterface, YoloInterface
+# from VSLS.interface_yolo import YoloWorldInterface, YoloInterface
+from VSLS.interface_yolo import YoloInterface
 from VSLS.interface_searcher import VSLSSearcher
 from VSLS.utilites import save_as_gif
 from matplotlib.lines import Line2D
