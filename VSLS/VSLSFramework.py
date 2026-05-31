@@ -135,7 +135,7 @@ class VSLSFramework:
 
         logger.info("VideoSearcher completed successfully.")
 
-    def get_grounded_objects(self, prompt_type : str, upload_video : int) -> Tuple[List[str], List[str], List[Tuple[str]]]:
+    def get_grounded_objects(self, prompt_type : str = "default", upload_video : int = True) -> Tuple[List[str], List[str], List[Tuple[str]]]:
         """
         Use Grounder to obtain target and cue objects.
 
