@@ -116,9 +116,10 @@ class VSLSFramework:
         """
         # Use Grounder to get target and cue objects
         # 通过简单的prompt, 以文本和video作为输入，使用gpt选择出目标object和相关project
-        target_objects, cue_objects = self.get_grounded_objects()
+        # target_objects, cue_objects = self.get_grounded_objects(prompt_type="default", upload_video="True")
+        target_objects, cue_objects, relations = self.get_grounded_objects(prompt_type="default", upload_video="True")
         # Initialize VSLSSearcher
-        video_searcher  = self.set_searching_targets(target_objects, cue_objects)
+        video_searcher  = self.set_searching_targets(target_objects, cue_objects, relations)
         logger.info(f"VSLSSearcher initialized successfully for video {self.video_path}.")
         # Perform search
         all_frames, time_stamps = self.perform_search(video_searcher)
@@ -135,7 +136,7 @@ class VSLSFramework:
 
         logger.info("VideoSearcher completed successfully.")
 
-    def get_grounded_objects(self, prompt_type : str = "default", upload_video : int = True) -> Tuple[List[str], List[str], List[Tuple[str]]]:
+    def get_grounded_objects(self, prompt_type : str = "cot", upload_video : int = True) -> Tuple[List[str], List[str], List[Tuple[str]]]:
         """
         Use Grounder to obtain target and cue objects.
 
