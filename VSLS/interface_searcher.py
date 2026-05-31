@@ -6,7 +6,7 @@ from decord import VideoReader, cpu
 from scipy.interpolate import UnivariateSpline
 import copy
 from tqdm import tqdm
-import cv2
+import os
 import copy
 
 # Assuming YoloWorldInterface is defined elsewhere and imported correctly
@@ -904,7 +904,7 @@ class VSLSSearcher:
             # Update the progress bar
             progress_bar.update(1)
 
-        np.save("/data/yourname/new-VL-Haystack/VL-Haystack/results/paper_charts&figs/" + self.video_path.split("/")[-1] + "score_distribution.npy", np.array(self.Score_history))
+        np.save(os.path.join(self.output_dir, "score_distribution.npy"), np.array(self.Score_history))
         print("Search finished")
         print("satisfied relations: ", self.satisfied_relations)
         # Close the progress bar once the loop is done
