@@ -11,7 +11,8 @@ import copy
 
 # Assuming YoloWorldInterface is defined elsewhere and imported correctly
 # from your_project.yolo_interface import YoloWorldInterface
-from VSLS.interface_yolo import YoloWorldInterface, YoloInterface
+# from VSLS.interface_yolo import YoloWorldInterface, YoloInterface
+from VSLS.interface_yolo import YoloInterface, UltralyticsYOLOWorldInterface
 
 np.random.seed(2025)
 
@@ -151,17 +152,23 @@ class VSLSSearcher:
         # # 释放资源
         # cap.release()
 
-    def initialize_yolo(self, config_path: str, checkpoint_path: str, device: str = "cuda:7"):
-        """
-        Initializes the YOLO object detection model with the given configurations.
+    # def initialize_yolo(self, config_path: str, checkpoint_path: str, device: str = "cuda:7"):
+    #     """
+    #     Initializes the YOLO object detection model with the given configurations.
 
-        Args:
-            config_path (str): Path to the YOLO configuration file.
-            checkpoint_path (str): Path to the YOLO model checkpoint.
-            device (str): Device for model inference (e.g., "cuda:0").
-        """
-        self.yolo = YoloWorldInterface(
-            config_path=config_path,
+    #     Args:
+    #         config_path (str): Path to the YOLO configuration file.
+    #         checkpoint_path (str): Path to the YOLO model checkpoint.
+    #         device (str): Device for model inference (e.g., "cuda:0").
+    #     """
+    #     self.yolo = YoloWorldInterface(
+    #         config_path=config_path,
+    #         checkpoint_path=checkpoint_path,
+    #         device=device
+    #     )
+        
+    def initialize_yolo(self, checkpoint_path: str = "yolov8x-worldv2.pt", device: str = "cuda:0"):
+        self.yolo = UltralyticsYOLOWorldInterface(
             checkpoint_path=checkpoint_path,
             device=device
         )
