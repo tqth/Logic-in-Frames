@@ -18,11 +18,11 @@ from VSLS.VSLSFramework import VSLSFramework
 CSV_PATH    = "/kaggle/input/datasets/nguyenbon/next-qa/NExTVideo/label/multi-choice/val.csv"
 MAP_PATH    = "/kaggle/input/datasets/nguyenbon/next-qa/NExTVideo/map_vid_vidorID.json"
 VIDEO_ROOT  = "/kaggle/input/datasets/nguyenbon/next-qa/NExTVideo/videos"
-YOLO_CKPT   = "/kaggle/working/yolo_world_v2_xl_obj365v1_goldg_cc3mlite_pretrain.pt"
+YOLO_CHECKPOINT = "yolov8x-worldv2.pt"
 OUTPUT_DIR  = "/kaggle/working/output/eval"
 RESULT_PATH = f"/kaggle/working/output/eval_results_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
 
-NUM_SAMPLES = None   # None = toàn bộ val set, hoặc đặt số nguyên VD: 100
+NUM_SAMPLES = None
 DEVICE      = "cuda:0"
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -49,14 +49,14 @@ def get_video_path(video_id):
 def build_options_str(row):
     return "\n".join(f"{IDX2LETTER[i]}) {row[col]}" for i, col in enumerate(OPTIONS_COLS))
 
-# ── Init models (một lần duy nhất) ───────────────────────────────────────────
+# ── Init models ───────────────────────────────────────────
 grounder = VSLSUniversalGrounder(
     backend="qwenvl",
     model_name="Qwen/Qwen2.5-VL-7B-Instruct",
     base_url="http://localhost:8000/v1",
 )
 
-yolo = UltralyticsYOLOWorldInterface(checkpoint_path=YOLO_CKPT, device=DEVICE)
+yolo = UltralyticsYOLOWorldInterface(checkpoint_path=YOLO_CHECKPOINT, device=DEVICE)
 
 # ── Evaluate ──────────────────────────────────────────────────────────────────
 results   = []
@@ -84,7 +84,6 @@ for _, row in pbar:
         "error"      : None,
     }
 
-    # ── skip nếu video không tồn tại ─────────────────────────────────────────
     if video_path is None or not os.path.exists(video_path):
         entry["error"] = "video not found"
         stats[qtype]["error"] += 1
@@ -103,11 +102,11 @@ for _, row in pbar:
             question=question,
             options=options_str,
             search_nframes=8,
-            grid_rows=2,
-            grid_cols=4,        # 2x4=8 = search_nframes, tránh lỗi grid mismatch
+            grid_rows=4,
+            grid_cols=4,
             output_dir=sample_out_dir,
-            confidence_threshold=0.05,
-            search_budget=0.5,
+            confidence_threshold=0.15,
+            search_budget=0.7,
             prefix="nextqa",
             device=DEVICE,
             update_method="spline",
@@ -115,7 +114,7 @@ for _, row in pbar:
 
         # Step 1: grounding
         target_objects, cue_objects, relations = framework.get_grounded_objects(
-            prompt_type="cot", upload_video=0
+            prompt_type="cot", upload_video=True
         )
 
         # Step 2: search keyframes
