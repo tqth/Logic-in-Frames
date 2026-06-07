@@ -125,7 +125,7 @@ class VSLSFramework:
 
         # Save retrieved frames
         self.save_frames(all_frames, time_stamps)
-        self.save_searching_iters(video_searcher)
+        # self.save_searching_iters(video_searcher)
         # Plot and save score distribution
         self.plot_and_save_scores(video_searcher)
 
