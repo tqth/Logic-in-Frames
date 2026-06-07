@@ -123,8 +123,8 @@ for _, row in pbar:
         all_frames, timestamps = framework.perform_search(video_searcher)
 
         # Step 3: QA
-        answer_pred = framework.perform_qa(all_frames, use_grid=True)
-        answer_pred = answer_pred.strip().upper()[0]  # lấy chữ cái đầu "C) ..." → "C"
+        answer_pred = framework.perform_qa(all_frames)
+        answer_pred = answer_pred.strip().upper()[0]
 
         correct = answer_pred == answer_gt
 
