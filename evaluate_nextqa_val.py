@@ -154,6 +154,9 @@ for _, row in pbar:
         entry["error"] = str(e)
         stats[qtype]["error"] += 1
 
+    print("Predicted Answer: ", answer_pred)
+    print("Ground truth Answer: ", answer_gt)
+
     results.append(entry)
 
     # ── cập nhật postfix tqdm ─────────────────────────────────────────────────
