@@ -130,7 +130,7 @@ for _, row in pbar:
 
         # Step 1: grounding
         target_objects, cue_objects, relations = framework.get_grounded_objects(
-            prompt_type="cot", upload_video=0
+            prompt_type="cot", upload_video=1
         )
 
         # Step 2: search keyframes
