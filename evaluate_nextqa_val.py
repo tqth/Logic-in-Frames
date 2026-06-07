@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import argparse
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
@@ -14,16 +15,30 @@ from VSLS.interface_llm import VSLSUniversalGrounder
 from VSLS.interface_yolo import UltralyticsYOLOWorldInterface
 from VSLS.VSLSFramework import VSLSFramework
 
-# ── Config ────────────────────────────────────────────────────────────────────
-CSV_PATH    = "/kaggle/input/datasets/nguyenbon/next-qa/NExTVideo/label/multi-choice/val.csv"
-MAP_PATH    = "/kaggle/input/datasets/nguyenbon/next-qa/NExTVideo/map_vid_vidorID.json"
-VIDEO_ROOT  = "/kaggle/input/datasets/nguyenbon/next-qa/NExTVideo/videos"
-YOLO_CHECKPOINT = "yolov8x-worldv2.pt"
-OUTPUT_DIR  = "/kaggle/working/output/eval"
-RESULT_PATH = f"/kaggle/working/output/eval_results_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+# ── Args ──────────────────────────────────────────────────────────────────────
+parser = argparse.ArgumentParser(description="Evaluate NExT-QA val set")
+parser.add_argument("--csv_path",    type=str, default="/kaggle/input/datasets/nguyenbon/next-qa/NExTVideo/label/multi-choice/val.csv")
+parser.add_argument("--map_path",    type=str, default="/kaggle/input/datasets/nguyenbon/next-qa/NExTVideo/map_vid_vidorID.json")
+parser.add_argument("--video_root",  type=str, default="/kaggle/input/datasets/nguyenbon/next-qa/NExTVideo/videos")
+parser.add_argument("--yolo_ckpt",   type=str, default="yolov8x-worldv2.pt")
+parser.add_argument("--output_dir",  type=str, default="/kaggle/working/output/eval")
+parser.add_argument("--num_samples", type=int, default=None, help="Số sample muốn eval, None = toàn bộ")
+parser.add_argument("--device",      type=str, default="cuda:0")
+parser.add_argument("--base_url",    type=str, default="http://localhost:8000/v1")
+parser.add_argument("--model_name",  type=str, default="Qwen/Qwen2.5-VL-7B-Instruct")
+parser.add_argument("--search_budget",       type=float, default=0.5)
+parser.add_argument("--confidence_threshold",type=float, default=0.05)
+parser.add_argument("--search_nframes",      type=int,   default=8)
+args = parser.parse_args()
 
-NUM_SAMPLES = None
-DEVICE      = "cuda:0"
+CSV_PATH    = args.csv_path
+MAP_PATH    = args.map_path
+VIDEO_ROOT  = args.video_root
+YOLO_CKPT   = args.yolo_ckpt
+OUTPUT_DIR  = args.output_dir
+NUM_SAMPLES = args.num_samples
+DEVICE      = args.device
+RESULT_PATH = os.path.join(OUTPUT_DIR, f"eval_results_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.json")
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
@@ -49,14 +64,14 @@ def get_video_path(video_id):
 def build_options_str(row):
     return "\n".join(f"{IDX2LETTER[i]}) {row[col]}" for i, col in enumerate(OPTIONS_COLS))
 
-# ── Init models ───────────────────────────────────────────
+# ── Init models (một lần duy nhất) ───────────────────────────────────────────
 grounder = VSLSUniversalGrounder(
     backend="qwenvl",
-    model_name="Qwen/Qwen2.5-VL-7B-Instruct",
-    base_url="http://localhost:8000/v1",
+    model_name=args.model_name,
+    base_url=args.base_url,
 )
 
-yolo = UltralyticsYOLOWorldInterface(checkpoint_path=YOLO_CHECKPOINT, device=DEVICE)
+yolo = UltralyticsYOLOWorldInterface(checkpoint_path=YOLO_CKPT, device=DEVICE)
 
 # ── Evaluate ──────────────────────────────────────────────────────────────────
 results   = []
@@ -84,6 +99,7 @@ for _, row in pbar:
         "error"      : None,
     }
 
+    # ── skip nếu video không tồn tại ─────────────────────────────────────────
     if video_path is None or not os.path.exists(video_path):
         entry["error"] = "video not found"
         stats[qtype]["error"] += 1
@@ -101,12 +117,12 @@ for _, row in pbar:
             video_path=video_path,
             question=question,
             options=options_str,
-            search_nframes=8,
+            search_nframes=args.search_nframes,
             grid_rows=4,
             grid_cols=4,
             output_dir=sample_out_dir,
-            confidence_threshold=0.15,
-            search_budget=0.7,
+            confidence_threshold=args.confidence_threshold,
+            search_budget=args.search_budget,
             prefix="nextqa",
             device=DEVICE,
             update_method="spline",
@@ -114,7 +130,7 @@ for _, row in pbar:
 
         # Step 1: grounding
         target_objects, cue_objects, relations = framework.get_grounded_objects(
-            prompt_type="cot", upload_video=True
+            prompt_type="cot", upload_video=0
         )
 
         # Step 2: search keyframes
