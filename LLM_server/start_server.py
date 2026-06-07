@@ -67,6 +67,7 @@ def start_server(script_path: str, port: int, log_path: str) -> subprocess.Popen
         env=env,
         stdout=open(log_path, "w"),
         stderr=subprocess.STDOUT,
+        start_new_session=True,
     )
     return proc
 
