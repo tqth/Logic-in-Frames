@@ -50,6 +50,9 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument('--save_batch', type=int, default=10, help='Save batch results to output_json every N entries.')
     parser.add_argument('--num', type=int, default=100, help='Number of videos to process.')
     parser.add_argument('--upload_video', type=int, default=1, help='Upload video or not to OpenAI API.')
+    parser.add_argument('--model_name', type=str, default='Qwen/Qwen2.5-VL-7B-Instruct')
+    parser.add_argument('--base_url', type=str, default='http://localhost:8000/v1')
+
     return parser.parse_args()
 
 def grounding_objects_onVideo(args, data_item,
@@ -115,9 +118,15 @@ def main():
     print(len(dataset), "%"*30)
 
     # Initialize Grounder
+    # grounder = VSLSUniversalGrounder(
+    #     backend=args.backend,
+    #     gpt4_model_name="gpt-4o"
+    # )
+
     grounder = VSLSUniversalGrounder(
         backend=args.backend,
-        gpt4_model_name="gpt-4o"
+        model_name=args.model_name,
+        base_url=args.base_url
     )
 
     # Initialize YOLO interface

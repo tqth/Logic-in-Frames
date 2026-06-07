@@ -297,8 +297,14 @@ class VSLSSearcher:
         Returns:
             np.ndarray: Combined image grid.
         """
-        if len(frames) != rows * cols:
-            raise ValueError("Frame count does not match grid dimensions")
+        # if len(frames) != rows * cols:
+        #     raise ValueError("Frame count does not match grid dimensions")
+        target = rows * cols
+        if len(frames) < target:
+            # Pad bằng cách lặp lại frame cuối cho đủ ô
+            frames = list(frames) + [frames[-1]] * (target - len(frames))
+        elif len(frames) > target:
+            frames = frames[:target]
 
         # Resize frames to fit the grid
         resized_frames = [cv2.resize(frame, (200, 95)) for frame in frames]  # Resize to 160x120
@@ -540,7 +546,7 @@ class VSLSSearcher:
         TIME_ALPHA = 0.5
         DELTA_T = 5
         CAUSAL_APLPHA = 0.5
-        OVERLAP_THRESHOLD = 0.5
+        OVERLAP_THRESHOLD = 0.35
         
         for rel_idx, relation in enumerate(self.relations):
             # 二元关系只计算一次
