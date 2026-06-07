@@ -537,6 +537,7 @@ class VSLSFramework:
         pass
 
 import seaborn as sns
+from interface_yolo import UltralyticsYOLOWorldInterface
 def initialize_yolo(
     config_path: str,
     checkpoint_path: str,
@@ -557,11 +558,12 @@ def initialize_yolo(
         FileNotFoundError: If the configuration file or checkpoint file is not found.
     """
 
-    yolo = YoloWorldInterface(
-        config_path=config_path,
-        checkpoint_path=checkpoint_path,
-        device=device
-    )
+    # yolo = YoloWorldInterface(
+    #     config_path=config_path,
+    #     checkpoint_path=checkpoint_path,
+    #     device=device
+    # )
+    yolo = UltralyticsYOLOWorldInterface(checkpoint_path=checkpoint_path, device=device)
     logger.info("YoloWorldInterface initialized successfully.")
     return yolo
 
@@ -587,6 +589,10 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument('--search_budget', type=float, default=0.5, help='Maximum ratio of frames to process during search.')
     parser.add_argument('--output_dir', type=str, default='./output', help='Directory to save outputs.')
     parser.add_argument('--prefix', type=str, default='stitched_image', help='Prefix for output filenames.')
+    parser.add_argument('--backend', type=str, default='qwenvl', help='backend is qwenvl or llava or gpt')
+    parser.add_argument('--model_name', type=str, default='Qwen/Qwen2.5-VL-7B-Instruct')
+    parser.add_argument('--base_url', type=str, default='http://localhost:8000/v1')
+
     return parser.parse_args()
 
 
@@ -597,10 +603,17 @@ def main():
     args = parse_arguments()
 
     # Initialize Grounder
+    # grounder = VSLSUniversalGrounder(
+    #     backend="gpt4",
+    #     gpt4_model_name="gpt-4o"
+    # )
     grounder = VSLSUniversalGrounder(
-        backend="gpt4",
-        gpt4_model_name="gpt-4o"
+        backend=args.backend,
+        model_name=args.model_name,
+        base_url=args.base_url
     )
+
+
     logger.info("VSLSUniversalGrounder initialized successfully.")
 
     # Initialize YOLO interface
