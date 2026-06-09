@@ -104,7 +104,7 @@ class VSLSFramework:
         self.video_id=self.video_path.split("/")[-1].split(".")[0]
         self.output_dir = os.path.join(self.output_dir, self.video_id)  # 视频保存路径
         # Ensure the output directory exists
-        os.makedirs(self.output_dir, exist_ok=True)
+        # os.makedirs(self.output_dir, exist_ok=True)
         logger.info("VideoSearcher initialized successfully.")
 
         self.results = {}
