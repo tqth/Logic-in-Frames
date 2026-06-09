@@ -227,7 +227,7 @@ def evaluate_sample(
         return entry
 
     try:
-        os.makedirs(sample_out_dir, exist_ok=True)
+        # os.makedirs(sample_out_dir, exist_ok=True)
 
         framework = VSLSFramework(
             grounder=grounder,
@@ -309,6 +309,7 @@ def evaluate_shard(
 
         # Resume ở cấp sample
         if row.name in done_qids:
+            global_processed += 1
             continue
 
         sample_out_dir = os.path.join(args.output_dir, str(row["video"]))
