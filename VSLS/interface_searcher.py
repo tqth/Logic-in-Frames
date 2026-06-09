@@ -910,7 +910,7 @@ class VSLSSearcher:
             # Update the progress bar
             progress_bar.update(1)
 
-        np.save(os.path.join(self.output_dir, "score_distribution.npy"), np.array(self.Score_history))
+        # np.save(os.path.join(self.output_dir, "score_distribution.npy"), np.array(self.Score_history))
         print("Search finished")
         print("satisfied relations: ", self.satisfied_relations)
         # Close the progress bar once the loop is done

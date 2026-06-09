@@ -155,7 +155,11 @@ def load_shard_results(output_dir: str, shard_id: int) -> List[Dict]:
 
 
 def finished_qids_in_shard(results: List[Dict]) -> Set:
-    return {r["qid"] for r in results if r.get("answer_pred") is not None or r.get("error") == "video not found"}
+    return {
+        (r["video_id"], r["qid"]) for r in results
+        if r.get("answer_pred") is not None
+        or r.get("error") == "video not found"
+    }
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -301,10 +305,9 @@ def evaluate_shard(
     )
 
     for _, row in pbar:
-        qid = int(row.get("qid", -1))
 
         # Resume ở cấp sample
-        if qid in done_qids:
+        if (str(row["video"]), int(row.get("qid", -1))) in done_qids:
             global_processed += 1
             continue
 
@@ -335,9 +338,10 @@ def evaluate_shard(
     pbar.close()
 
     # Final save
+    actual_status = "completed" if len(results) >= shard_total else "running"
     save_checkpoint(args.output_dir, shard_id, results,
-                    processed=len(results), total=shard_total,
-                    status="completed")
+                processed=len(results), total=shard_total,
+                status=actual_status)
 
     # Shard summary
     shard_correct = sum(1 for r in results if r.get("correct"))
