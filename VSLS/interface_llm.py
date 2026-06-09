@@ -81,7 +81,7 @@ class LocalVLMInterface:
                     content = chunk.choices[0].delta.content
                     stream_response += content
 
-            print(stream_response)
+            # print(stream_response)
             print("-" * 30)
                 
         except Exception as e:
@@ -122,8 +122,8 @@ class LocalVLMInterface:
                 ],
                 temperature=0.2,
             )
-            print("\nResponse:")
-            print(response.choices[0].message.content)
+            # print("\nResponse:")
+            # print(response.choices[0].message.content)
             return response.choices[0].message.content
              
         except Exception as e:
@@ -166,9 +166,9 @@ class LocalVLMInterface:
                 ],
                 temperature=temperature,
             )
-            print("\nResponse:")
-            print(response)
-            print(response.choices[0].message.content)
+            # print("\nResponse:")
+            # print(response)
+            # print(response.choices[0].message.content)
             return response.choices[0].message.content
             
         except Exception as e:
@@ -222,7 +222,7 @@ class GPT4Interface:
         try:
             response = requests.post(self.url, headers=self.headers, data=json.dumps(data))
             response = response.json()
-            print(response)
+            # print(response)
 
             
             return response['choices'][0]['message']['content'].strip()
@@ -277,7 +277,7 @@ class GPT4Interface:
         }
         try:
             response = requests.post(self.url, headers=self.headers, data=json.dumps(data))
-            print(response.json())
+            # print(response.json())
             response = response.json()
             return response['choices'][0]['message']['content'].strip()
 
@@ -306,7 +306,7 @@ class GPT4Interface:
         inputs = [{"type": "text", "text": query}]
 
         if frames:
-            print("frames: ", frames)
+            # print("frames: ", frames)
             # Encode frames as Base64 strings
             for i, frame in enumerate(frames):
                 frame.save(f"frame_{i}.jpg")
@@ -336,7 +336,7 @@ class GPT4Interface:
         }
         try:
             response = requests.post(self.url, headers=self.headers, data=json.dumps(data))
-            print(response.json())
+            # print(response.json())
             response = response.json()
 
             return response['choices'][0]['message']['content'].strip()
@@ -406,7 +406,7 @@ class VSLSUniversalGrounder:
             raise ValueError("backend must be either 'llava' or 'gpt4'.")
         
         
-        print("???", len(frames))
+        # print("???", len(frames))
             
         if options:
             system_prompt += f"Options: {options}\n"
@@ -553,7 +553,7 @@ class VSLSUniversalGrounder:
                 temperature=temperature,
                 max_tokens=max_tokens
             )
-        print("response: ", response)
+        # print("response: ", response)
 
         lines = response        
         lines = re.sub(r'\n+', '\\n', lines)
@@ -574,7 +574,7 @@ class VSLSUniversalGrounder:
         target_objects = self.parse_objects(lines[0])
         cue_objects = self.parse_objects(lines[1])
         relations = self.parse_relations(lines[2])
-        print(relations)
+        # print(relations)
                 
         return target_objects, cue_objects, relations
 
@@ -626,7 +626,7 @@ class VSLSUniversalGrounder:
                 + "Answer with the option’s letter from the given choices directly.\n"
                 + "Your response format should be strictly an upper case letter A,B,C,D or E.\n"
             )
-            print("system_prompt:\n",system_prompt)
+            # print("system_prompt:\n",system_prompt)
 
         elif self.backend == "llava" or self.backend == "internvl" or self.backend == "qwenvl":
             system_prompt = (
@@ -637,7 +637,7 @@ class VSLSUniversalGrounder:
                 + "Answer with the option’s letter from the given choices directly.\n"
                 + "Your response format should be strictly an upper case letter A,B,C,D or E.\n"
             )
-            print("system_prompt:\n",system_prompt)
+            # print("system_prompt:\n",system_prompt)
 
         response = self.VLM_model_interfance.inference_with_frames_all_in_one(
             query=system_prompt,
@@ -645,7 +645,7 @@ class VSLSUniversalGrounder:
             temperature=temperature,
             max_tokens=30
         )
-        print(response)
+        # print(response)
         return response.strip()
     
 if __name__ == "__main__":
