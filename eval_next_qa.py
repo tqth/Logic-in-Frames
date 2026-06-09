@@ -156,7 +156,7 @@ def load_shard_results(output_dir: str, shard_id: int) -> List[Dict]:
 
 def finished_qids_in_shard(results: List[Dict]) -> Set:
     return {
-        (r["video_id"], r["qid"]) for r in results
+        r["row_idx"] for r in results
         if r.get("answer_pred") is not None
         or r.get("error") == "video not found"
     }
@@ -209,6 +209,7 @@ def evaluate_sample(
     video_path  = get_video_path(video_id, vid_map, args.video_root)
 
     entry = {
+        "row_idx"    : int(row.name),
         "video_id"   : str(video_id),
         "qid"        : int(row.get("qid", -1)),
         "type"       : qtype,
@@ -307,8 +308,7 @@ def evaluate_shard(
     for _, row in pbar:
 
         # Resume ở cấp sample
-        if (str(row["video"]), int(row.get("qid", -1))) in done_qids:
-            global_processed += 1
+        if row.name in done_qids:
             continue
 
         sample_out_dir = os.path.join(args.output_dir, str(row["video"]))
