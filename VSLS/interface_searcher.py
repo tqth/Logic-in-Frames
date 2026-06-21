@@ -99,7 +99,7 @@ class VSLSSearcher:
         self.profix = prefix
         self.confidence_threshold = confidence_threshold
         self.object2weight = object2weight if object2weight else {}
-        self.fps = 1  # Sampling at 1 fps
+        # self.fps = 1  # Sampling at 1 fps
         self.update_method = update_method
         self.relation_alpha = relation_alpha
 
@@ -110,7 +110,8 @@ class VSLSSearcher:
         self.raw_fps = cap.get(cv2.CAP_PROP_FPS)
         self.total_frame_num = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         self.duration = self.total_frame_num / self.raw_fps
-
+        MIN_FRAMES = 8
+        self.fps = max(1, MIN_FRAMES / self.duration)
         # Adjust total frame number based on sampling rate
         self.total_frame_num = int(self.duration * self.fps)
         self.remaining_targets = target_objects.copy()
