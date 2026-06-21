@@ -647,6 +647,163 @@ class VSLSUniversalGrounder:
         )
         # print(response)
         return response.strip()
+    def inference_action_recog(
+        self,
+        frames: List[Image.Image],
+        candidate_classes: Optional[List[str]] = None,
+        temperature: float = 0.0,
+        max_tokens: int = 32,
+    ) -> str:
+        """
+        Nhận dạng action từ keyframes trên tập HMDB51.
+    
+        Args:
+            frames: keyframes đã được extract
+            candidate_classes: danh sách class để classify (default: toàn bộ HMDB51)
+            temperature: 0.0 để deterministic
+        Returns:
+            action class name (str)
+        """
+        HMDB51_CLASSES = [
+        "brush_hair", "cartwheel", "catch", "chew", "clap", "climb", "climb_stairs",
+        "dive", "draw_sword", "dribble", "drink", "eat", "fall_floor", "fencing",
+        "field_hockey_penalty", "floor_gymnastics", "flic_flac", "golf", "handstand",
+        "hit", "hug", "jump", "kick", "kick_ball", "kiss", "laugh", "pick",
+        "pour", "pullup", "punch", "push", "pushup", "ride_bike", "ride_horse",
+        "run", "shake_hands", "shoot_ball", "shoot_bow", "shoot_gun", "sit",
+        "situp", "smile", "smoke", "somersault", "stand", "swing_baseball", "sword",
+        "sword_exercise", "talk", "throw", "turn", "walk", "wave"
+        ]
+        classes = candidate_classes or HMDB51_CLASSES
+        classes_str = ", ".join(classes)
+
+        system_prompt = (
+            "You are an action recognition expert. "
+            "Analyze these video frames and identify the action being performed.\n"
+            + "\n".join(["<image>"] * len(frames))
+            + "\n\n"
+            "Focus on:\n"
+            "- Body posture and movement\n"
+            "- Interaction with objects or other people\n"
+            "- Speed and dynamics of motion\n"
+            "\n"
+            f"Choose exactly one action from this list:\n{classes_str}\n"
+            "\n"
+            "Rules:\n"
+            "1. Output ONLY the class name, nothing else\n"
+            "2. Must be exactly as written in the list\n"
+            "3. No explanation, no punctuation\n"
+        )
+
+        response = self.VLM_model_interfance.inference_with_frames_all_in_one(
+            query=system_prompt,
+            frames=frames,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+
+        # Normalize output về class gần nhất nếu VLM không trả đúng format
+        response = response.strip().lower().replace(" ", "_")
+        if response not in classes:
+            # fallback: tìm class gần nhất bằng substring match
+            matched = [c for c in classes if c in response or response in c]
+            response = matched[0] if matched else response
+
+        return response
+    
+    def inference_query_grounding_action(
+        self,
+        video_path: str,
+        candidate_classes: List[str],
+        upload_video: bool = True,
+        temperature: float = 0.0,
+        max_tokens: int = 512,
+    ):
+        """
+        Grounding cho action recognition (không có question).
+        candidate_classes: top-K action classes cần phân biệt
+        """
+        if upload_video:
+            frames = load_video_frames(video_path=video_path, num_frames=self.num_frames)
+
+        classes_str = ", ".join(candidate_classes)
+
+        system_prompt = (
+            "Analyze the following video frames to identify objects and relationships "
+            "relevant to recognizing the action being performed.\n"
+            f"Possible actions: {classes_str}\n"
+            "\n"
+            """Step 1: Key Object Identification
+            • Extract 5-8 core objects detectable by computer vision that are directly involved in the action
+            • Focus on: actor body parts, tools/objects being used, interaction targets
+            • Use YOLO-compatible noun phrases (e.g., "person", "ball", "bat")
+            • Format: Key Objects: obj1, obj2, obj3
+
+            Step 2: Contextual Cues
+            • List 3-5 scene elements that help distinguish between similar actions
+            • E.g., to distinguish "ride_horse" vs "ride_bike": "saddle", "wheels", "helmet"
+            • Format: Cue Objects: cue1, cue2, cue3
+
+            Step 3: Relationship Triplets
+            • Relationship types:
+                • Spatial: Objects appear together in same frame
+                • Attribute: Describes how action is performed (e.g., "person; attribute; bat")
+                • Time: Sequential actions across frames
+                • Causal: One object/action causes another
+
+            • Format: Rel: (object1; relation_type; object2)
+
+            Output Rules:
+                1. One line each for Key Objects/Cue Objects/Rel
+                2. Separate items with comma except triplets use semicolon
+                3. Never use markdown or natural language explanations
+
+            Example for action "swing_baseball":
+                Key Objects: person, baseball_bat, ball
+                Cue Objects: field, helmet, glove
+                Rel: (person; attribute; baseball_bat), (person; causal; ball)
+
+            Format your response EXACTLY like this:
+                Key Objects: object1, object2, object3
+                Cue Objects: object1, object2, object3
+                Rel: (object1; relation_type1; object2), (object3; relation_type2; object4)
+            """
+        )   
+
+        if upload_video:
+            response = self.VLM_model_interfance.inference_with_frames_all_in_one(
+                query=system_prompt,
+                frames=frames,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+        else:
+            response = self.VLM_model_interfance.inference_text_only(
+                query=system_prompt,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+
+        # Parse giống inference_query_grounding2
+        lines = re.sub(r'\n+', '\\n', response)
+        lines = re.sub(r'\n$', '', lines)
+        lines = re.sub(r'^\n', '', lines)
+
+        start_pos = lines.find("Key Objects: ")
+        rel_pos   = lines.find("Rel: ")
+        end_pos   = lines.find('\n', rel_pos)
+        if end_pos == -1:
+            end_pos = len(lines)
+        lines = lines[start_pos:end_pos].split("\n")
+
+        if len(lines) < 3:
+            raise ValueError(f"Unexpected response format: {response}")
+
+        target_objects = self.parse_objects(lines[0])
+        cue_objects    = self.parse_objects(lines[1])
+        relations      = self.parse_relations(lines[2])
+
+        return target_objects, cue_objects, relations
     
 if __name__ == "__main__":
     """
