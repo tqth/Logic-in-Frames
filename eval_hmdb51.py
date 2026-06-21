@@ -307,7 +307,7 @@ def evaluate_sample(
  
         # Step 1: Grounding — dùng cot với question về action
         target_objects, cue_objects, relations = framework.get_grounded_objects(
-            prompt_type="cot", upload_video=1
+            prompt_type="action", upload_video=1
         )
  
         # Step 2: Search keyframes

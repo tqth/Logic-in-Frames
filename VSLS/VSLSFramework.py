@@ -151,8 +151,15 @@ class VSLSFramework:
                 options=self.options,
                 upload_video=upload_video
             )
+        elif prompt_type == "action":
+            target_objects, cue_objects, relations = self.grounder.inference_query_grounding2(
+                video_path=self.video_path,
+                question=self.question,
+                options=self.options,
+                upload_video=upload_video
+            )
         else:
-            target_objects, cue_objects = self.grounder.inference_query_grounding(
+            target_objects, cue_objects = self.grounder.inference_query_grounding_action(
                 video_path=self.video_path,
                 question=self.question,
                 options=self.options,
