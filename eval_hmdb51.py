@@ -285,64 +285,45 @@ def evaluate_sample(
         return entry
 
     try:
+        # Dùng class_names làm "options" để grounding biết cần tìm gì
         classes_str = ", ".join(class_names)
-
-        # ── Kiểm tra độ dài video ─────────────────────────────────────────
-        import cv2
-        cap = cv2.VideoCapture(video_path)
-        raw_fps  = cap.get(cv2.CAP_PROP_FPS)
-        n_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
-        duration = n_frames / raw_fps if raw_fps > 0 else 0
-        cap.release()
-
-        SHORT_VIDEO_THRESHOLD = 8.1  # giây
-
-        if duration < SHORT_VIDEO_THRESHOLD:
-            # ── Uniform sampling: lấy đều search_nframes frame ───────────
-            from decord import VideoReader, cpu
-            vr = VideoReader(video_path, ctx=cpu(0))
-            total = len(vr)
-            indices = np.linspace(0, total - 1, args.search_nframes, dtype=int).tolist()
-            all_frames = list(vr.get_batch(indices).asnumpy())
-            timestamps = [round(idx / raw_fps, 2) for idx in indices]
-            entry["search_mode"] = "uniform"
-            logger.info(f"Short video ({duration:.1f}s) — uniform sampling {len(all_frames)} frames")
-
-        else:
-            # ── VSLS search bình thường ───────────────────────────────────
-            framework = VSLSFramework(
-                grounder=grounder,
-                yolo_scorer=yolo,
-                video_path=video_path,
-                question="What action is being performed in this video?",
-                options=classes_str,
-                search_nframes=args.search_nframes,
-                grid_rows=2,
-                grid_cols=4,
-                output_dir=sample_out_dir,
-                confidence_threshold=args.confidence_threshold,
-                search_budget=args.search_budget,
-                prefix="hmdb51",
-                device=args.device,
-                update_method="spline",
-            )
-            target_objects, cue_objects, relations = framework.get_grounded_objects(
-                prompt_type="cot", upload_video=1
-            )
-            video_searcher = framework.set_searching_targets(target_objects, cue_objects, relations)
-            all_frames, timestamps = framework.perform_search(video_searcher)
-            entry["search_mode"] = "vsls"
-
-        # ── Action recognition ────────────────────────────────────────────
+ 
+        framework = VSLSFramework(
+            grounder=grounder,
+            yolo_scorer=yolo,
+            video_path=video_path,
+            question="What action is being performed in this video?",
+            options=classes_str,
+            search_nframes=args.search_nframes,
+            grid_rows=2,
+            grid_cols=4,
+            output_dir=sample_out_dir,
+            confidence_threshold=args.confidence_threshold,
+            search_budget=args.search_budget,
+            prefix="hmdb51",
+            device=args.device,
+            update_method="spline",
+        )
+ 
+        # Step 1: Grounding — dùng cot với question về action
+        target_objects, cue_objects, relations = framework.get_grounded_objects(
+            prompt_type="cot", upload_video=1
+        )
+ 
+        # Step 2: Search keyframes
+        video_searcher = framework.set_searching_targets(target_objects, cue_objects, relations)
+        all_frames, timestamps = framework.perform_search(video_searcher)
+ 
+        # Step 3: Action recognition thay vì QA
         pred_class = grounder.inference_action_recog(
             frames=all_frames,
             candidate_classes=class_names,
         )
-
+ 
         entry["pred_class"]  = pred_class
         entry["correct"]     = pred_class == class_name
         entry["timestamps"]  = [float(t) for t in timestamps]
-
+ 
     except Exception as e:
         entry["error"] = f"{type(e).__name__}: {e}"
         logger.warning(f"  Error {video_name}: {entry['error']}")
