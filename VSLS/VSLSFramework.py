@@ -152,11 +152,21 @@ class VSLSFramework:
                 upload_video=upload_video
             )
         elif prompt_type == "action":
+            HMDB51_CLASSES = [
+            "brush_hair", "cartwheel", "catch", "chew", "clap", "climb", "climb_stairs",
+            "dive", "draw_sword", "dribble", "drink", "eat", "fall_floor", "fencing",
+            "field_hockey_penalty", "floor_gymnastics", "flic_flac", "golf", "handstand",
+            "hit", "hug", "jump", "kick", "kick_ball", "kiss", "laugh", "pick",
+            "pour", "pullup", "punch", "push", "pushup", "ride_bike", "ride_horse",
+            "run", "shake_hands", "shoot_ball", "shoot_bow", "shoot_gun", "sit",
+            "situp", "smile", "smoke", "somersault", "stand", "swing_baseball", "sword",
+            "sword_exercise", "talk", "throw", "turn", "walk", "wave"
+            ]
+
             target_objects, cue_objects, relations = self.grounder.inference_query_grounding_action(
                 video_path=self.video_path,
-                question=self.question,
-                options=self.options,
-                upload_video=upload_video
+                candidate_classes=HMDB51_CLASSES,
+                upload_video=upload_video,
             )
         else:
             target_objects, cue_objects = self.grounder.inference_query_grounding(
