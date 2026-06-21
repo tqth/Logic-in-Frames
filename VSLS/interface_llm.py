@@ -733,6 +733,10 @@ class VSLSUniversalGrounder:
             "relevant to recognizing the action being performed.\n"
             f"Possible actions: {classes_str}\n"
             "\n"
+            "Possible actions are provided only as context.\n"
+            "Do NOT infer which action is correct.\n"
+            "Only extract visual evidence that can help distinguish among them."
+            "\n"
             """Step 1: Key Object Identification
             • Extract 5-8 core objects detectable by computer vision that are directly involved in the action
             • Focus on: actor body parts, tools/objects being used, interaction targets
