@@ -5,6 +5,7 @@ Cách dùng:
     python start_server.py --model qwen        # mặc định port 8000
     python start_server.py --model llava
     python start_server.py --model qwen --port 8001
+    python start_server.py --model qwen3vl
 
 Thêm model mới:
     1. Tạo file servers/<tên>_server.py
@@ -13,8 +14,13 @@ Thêm model mới:
 
 import subprocess, time, requests, os, argparse
 
-# ── Registry: thêm model mới vào đây ──────────────────────────────────────────
+# Registry
 MODEL_REGISTRY = {
+    "qwen3vl": {
+        "script": "servers/qwen3vl_server.py",
+        "pip":    ["transformers>=4.57.0", "accelerate"],
+        "log":    "/kaggle/working/qwen3vl_server.log",
+    },
     "qwen": {
         "script": "servers/qwen_server.py",
         "pip":    ["qwen-vl-utils"],
@@ -32,7 +38,6 @@ MODEL_REGISTRY = {
     #     "log":    "/kaggle/working/internvl_server.log",
     # },
 }
-# ──────────────────────────────────────────────────────────────────────────────
 
 HF_CACHE_DIR = "/kaggle/working/hf_cache"
 REPO_DIR     = os.path.dirname(os.path.abspath(__file__))
