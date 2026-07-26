@@ -104,16 +104,11 @@ class VSLSSearcher:
         self.relation_alpha = relation_alpha
 
         # Video properties
-        cap = cv2.VideoCapture(self.video_path)
-        if not cap.isOpened():
-            raise ValueError(f"Cannot open video file: {self.video_path}")
-        self.raw_fps = cap.get(cv2.CAP_PROP_FPS)
-        self.total_frame_num = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        self.duration = self.total_frame_num / self.raw_fps
-        MIN_FRAMES = 8
-        self.fps = max(1, MIN_FRAMES / self.duration)
-        # Adjust total frame number based on sampling rate
-        self.total_frame_num = int(self.duration * self.fps)
+        # HOOK: initialize_source() chịu trách nhiệm set self.raw_fps, self.fps,
+        # self.total_frame_num, self.duration dựa trên nguồn dữ liệu cụ thể.
+        # Bản mặc định dưới đây dùng cv2.VideoCapture cho video; VSLSAlbumSearcher
+        # sẽ override initialize_source() để dùng danh sách ảnh thay vì video.
+        self.initialize_source()
         self.remaining_targets = target_objects.copy()
         self.satisfied_relations = [False] * len(relations)
         self.search_budget = min(1000, self.total_frame_num*search_budget)
@@ -173,6 +168,32 @@ class VSLSSearcher:
             checkpoint_path=checkpoint_path,
             device=device
         )
+
+    def initialize_source(self):
+        """
+        HOOK METHOD (Template Method pattern).
+        Khởi tạo các thuộc tính phụ thuộc vào nguồn dữ liệu: self.raw_fps, self.fps,
+        self.total_frame_num, self.duration.
+
+        Bản mặc định này dành cho VIDEO: mở video bằng cv2.VideoCapture, tính fps
+        gốc, tổng số frame, thời lượng, sau đó áp dụng logic resample (MIN_FRAMES)
+        để đảm bảo có đủ số "khung tìm kiếm ảo" tối thiểu ngay cả với video ngắn.
+
+        Subclass (vd. VSLSAlbumSearcher) override method này để dùng nguồn dữ liệu
+        khác (danh sách ảnh) mà KHÔNG cần sửa bất kỳ phần nào khác của __init__
+        hay các thuật toán search/sampling/scoring phía sau.
+        """
+        cap = cv2.VideoCapture(self.video_path)
+        if not cap.isOpened():
+            raise ValueError(f"Cannot open video file: {self.video_path}")
+        self.raw_fps = cap.get(cv2.CAP_PROP_FPS)
+        self.total_frame_num = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        self.duration = self.total_frame_num / self.raw_fps
+        MIN_FRAMES = 8
+        self.fps = max(1, MIN_FRAMES / self.duration)
+        # Adjust total frame number based on sampling rate
+        self.total_frame_num = int(self.duration * self.fps)
+        cap.release()
 
     def reset_yolo_vocabulary(self, target_objects: List[str], cue_objects: List[str]):
         """
@@ -361,6 +382,14 @@ class VSLSSearcher:
             sampled_frame_indices (List[int]): Corresponding frame indices.
             window_size (int): Number of neighboring frames to update.
         """
+        if self.update_method == "uniform":
+            # Album: mỗi ảnh là một đơn vị độc lập, không suy diễn điểm số cho các
+            # ảnh "lân cận" theo chỉ số (chỉ số ảnh trong album không mang ý nghĩa
+            # liên tục như timeline video). score_distribution của từng ảnh đã được
+            # gán trực tiếp từ confidence thật ở update_frame_distribution phía trên
+            # nên không cần (và không nên) lan truyền thêm ở đây.
+            return
+
         # Calculate the threshold for top 25%
         top_25_threshold = np.percentile(frame_confidences, 75)
 
@@ -462,6 +491,43 @@ class VSLSSearcher:
 
         return p_distribution
 
+    def uniform_keyframe_distribution(
+        self,
+        non_visiting_frames: np.ndarray,
+        score_distribution: np.ndarray,
+        video_length: int
+    ) -> np.ndarray:
+        """
+        通过均匀分布生成关于帧/图片的概率分布 (không suy diễn theo khoảng cách chỉ số)
+        Generate a uniform probability distribution over frames/images that have not
+        yet been visited, WITHOUT propagating scores based on index proximity.
+
+        Khác với gaussian_score_distribution/spline_keyframe_distribution (vốn giả định
+        "chỉ số gần nhau => nội dung tương tự", hợp lý với video theo dòng thời gian),
+        hàm này phù hợp cho các bộ sưu tập ảnh rời rạc (album) nơi thứ tự ảnh không
+        mang ý nghĩa liên tục: mỗi ảnh chưa được duyệt có cơ hội được lấy mẫu như nhau,
+        tránh việc suy diễn sai điểm số cho ảnh lân cận về chỉ số nhưng khác nội dung.
+
+        Args:
+            non_visiting_frames (np.ndarray): Indicator array for frames not yet visited.
+            score_distribution (np.ndarray): Current score distribution (không dùng ở đây).
+            video_length (int): Total number of frames/images.
+
+        Returns:
+            np.ndarray: Normalized uniform probability distribution over unvisited frames.
+        """
+        unvisited_mask = non_visiting_frames == 1
+
+        if not np.any(unvisited_mask):
+            # Đã duyệt hết -> phân phối đều toàn bộ để tránh chia cho 0
+            return np.ones(video_length) / video_length
+
+        p_distribution = np.zeros(video_length)
+        p_distribution[unvisited_mask] = 1.0
+        p_distribution /= p_distribution.sum()
+
+        return p_distribution
+
     def update_frame_distribution(
         self,
         sampled_frame_indices: List[int],
@@ -527,7 +593,14 @@ class VSLSSearcher:
                 self.score_distribution,
                 len(self.score_distribution)
             )
-        
+
+        elif self.update_method == "uniform":
+            self.P = self.uniform_keyframe_distribution(
+                self.non_visiting_frames,
+                self.score_distribution,
+                len(self.score_distribution)
+            )
+
         # Store the updated distribution
         self.store_score_distribution()
 
