@@ -5,7 +5,7 @@ import sys
 sys.path.append("./LLaVA-NeXT")
 sys.path.append("./VSLS")
 import openai
-from typing import List, Dict
+from typing import List, Dict, Tuple, Optional
 from PIL import Image
 import numpy as np
 import cv2
