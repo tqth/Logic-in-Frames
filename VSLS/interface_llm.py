@@ -808,6 +808,144 @@ class VSLSUniversalGrounder:
         relations      = self.parse_relations(lines[2])
 
         return target_objects, cue_objects, relations
+
+    def inference_query_grounding_album(
+        self,
+        image_paths: List[str],
+        temperature: float = 0.0,
+        max_tokens: int = 512,
+    ) -> Tuple[List[str], List[str], List[Tuple[str, str, str]]]:
+
+        if not image_paths:
+            raise ValueError("image_paths không được rỗng.")
+
+        frames = self._sample_album_frames(image_paths, self.num_frames)
+
+        if self.backend == "gpt4":
+            image_tag_block = "\n".join(["<image>"] * len(frames)) + "\n"
+        elif self.backend in ("llava", "internvl", "qwenvl","qwen3vl"):
+            # LocalVLMInterface nhúng ảnh qua image_url trong message content,
+            # không cần chèn <image> tag vào text prompt.
+            image_tag_block = ""
+        else:
+            raise ValueError("backend must be either 'llava', 'internvl', 'qwenvl' or 'gpt4'.")
+
+        system_prompt = (
+            "Here is an album of images (a photo collection, not a single video or a single question):\n"
+            + image_tag_block
+            + "\nAnalyze the visual content across these images and identify the most "
+            "salient objects and relationships that could be used to describe or "
+            "retrieve content from this album. Do not assume any specific question "
+            "or task is being asked.\n"
+            + """
+            Step 1: Key Object Identification
+
+                • Extract 5-8 core objects detectable by computer vision that recur or
+                stand out across the album
+
+                • Use YOLO-compatible noun phrases (e.g., "person", "bicycle")
+
+                • Format: Key Objects: obj1, obj2, obj3
+
+            Step 2: Contextual Cues
+
+                • List 3-5 scene elements that help locate the key objects within the album
+
+                • Use YOLO-compatible detectable noun phrases (avoid abstract concepts)
+
+                • Format: Cue Objects: cue1, cue2, cue3
+
+            Step 3: Relationship Triplets
+
+                • Relationship types:
+                    •   Spatial: Objects appear together in the same image
+                    •   Attribute: Color/size/material descriptions (e.g., "red clothes", "large")
+                    •   Time: Objects appear across different images within the album
+                    •   Causal: There is an implied order between the objects
+
+                • Condition: Both objects in each relationship must be present in the
+                extracted Key Objects and Cue Objects.
+
+                • Format: Rel: (object, relation_type, object), relation_type should be
+                exactly one of spatial/attribute/time/causal
+
+            Output Rules
+                1.  One line each for Key Objects/Cue Objects/Rel, starting with the exact prefixes
+                2.  Separate items with comma, except for triplets where items are separated by semicolon
+                3.  Never use markdown or natural language explanations
+                4.  Infer salience purely from what recurs or stands out visually across
+                    the album — do not invent a question or task that was not given
+
+            Format your response EXACTLY like this in three lines:
+                    Key Objects: object1, object2, object3
+                    Cue Objects: object1, object2, object3
+                    Rel: (object1; relation_type1; object2), (object3; relation_type2; object4)
+            """
+        )
+
+        response = self.VLM_model_interfance.inference_with_frames_all_in_one(
+            query=system_prompt,
+            frames=frames,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+
+        # Parse giống hệt inference_query_grounding2 — tái dùng logic parsing có sẵn,
+        # không viết lại parser riêng cho Album.
+        lines = response
+        lines = re.sub(r'\n+', '\\n', lines)
+        lines = re.sub(r'\n$', '', lines)
+        lines = re.sub(r'^\n', '', lines)
+
+        start_pos = lines.find("Key Objects: ")
+        rel_pos = lines.find("Rel: ")
+        end_pos = lines.find('\n', rel_pos)
+        if end_pos == -1:
+            end_pos = len(lines)
+        lines = lines[start_pos:end_pos]
+
+        lines = lines.split("\n")
+        if len(lines) < 3:
+            raise ValueError(
+                f"Unexpected response format from inference_query_grounding_album() --> {response}."
+            )
+
+        target_objects = self.parse_objects(lines[0])
+        cue_objects = self.parse_objects(lines[1])
+        relations = self.parse_relations(lines[2])
+
+        return target_objects, cue_objects, relations
+
+
+    def _sample_album_frames(self, image_paths: List[str], num_frames: int) -> List[Image.Image]:
+        """
+        Sample đều num_frames ảnh từ album để làm context ảnh cho LLM grounding.
+
+        Chỉ dùng nội bộ bởi inference_query_grounding_album(). Không đụng tới
+        load_video_frames() trong utilites.py, nên hoàn toàn không ảnh hưởng tới
+        luồng video/ảnh-đơn hiện có.
+
+        Args:
+            image_paths: Danh sách toàn bộ đường dẫn ảnh trong album.
+            num_frames: Số ảnh tối đa cần lấy mẫu.
+
+        Returns:
+            List[Image.Image]: các ảnh PIL đã convert sang RGB.
+        """
+        if len(image_paths) <= num_frames:
+            selected_paths = image_paths
+        else:
+            indices = np.linspace(0, len(image_paths) - 1, num_frames, dtype=int)
+            selected_paths = [image_paths[i] for i in indices]
+
+        frames = []
+        for path in selected_paths:
+            image = Image.open(path)
+            if image.mode != "RGB":
+                image = image.convert("RGB")
+            frames.append(image)
+
+        return frames
     
 if __name__ == "__main__":
     """
