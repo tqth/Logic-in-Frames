@@ -448,20 +448,42 @@ class VSLSUniversalGrounder:
         
     def inference_query_grounding2(
         self,
-        video_path: str,
-        question: str,
+        video_path: Optional[str] = None,
+        question: str = "",
         upload_video: bool = True,
         options: Optional[str] = None,
         temperature: float = 0.0,
-        max_tokens: int = 512
+        max_tokens: int = 512,
+        image_paths: Optional[List[str]] = None,
     ) -> Dict[str, List[str]]:
         """
         identify target_objects and cue_objects that help answer the question.
+
+        Nguồn ảnh (đúng 1 trong 2 phải được cung cấp khi upload_video=True):
+            - video_path (str): 1 file video/ảnh đơn -> load_video_frames() như cũ
+            (đường đi VideoQA gốc, không đổi).
+            - image_paths (List[str]): danh sách nhiều ảnh trong 1 album -> đọc TOÀN BỘ
+            ảnh bằng PIL trực tiếp, không sample, không qua load_video_frames()
+            (đường đi Album Retrieval mới).
         """
 
         if upload_video:
-            frames = load_video_frames(video_path=video_path, num_frames=self.num_frames)
-        
+            if image_paths is not None:
+                # Album: đọc TOÀN BỘ ảnh trong album, không sample.
+                frames = []
+                for path in image_paths:
+                    image = Image.open(path)
+                    if image.mode != "RGB":
+                        image = image.convert("RGB")
+                    frames.append(image)
+            elif video_path is not None:
+                frames = load_video_frames(video_path=video_path, num_frames=self.num_frames)
+            else:
+                raise ValueError(
+                    "inference_query_grounding2(): phải cung cấp video_path hoặc "
+                    "image_paths khi upload_video=True."
+                )
+
         else:
             system_prompt = (
                 "Here is a question:\n"
@@ -496,7 +518,7 @@ class VSLSUniversalGrounder:
 
                 • Extract 5-8 core objects detectable by computer vision
 
-                • Use YOLO-compatible noun phrases (e.g., “person”, “mic”)
+                • Use YOLO-compatible noun phrases (e.g., "person", "mic")
 
                 • Format: Key Objects: obj1, obj2, obj3
 
@@ -512,13 +534,15 @@ class VSLSUniversalGrounder:
 
                 • Relationship types:
                     •	Spatial: Objects must appear in the same frame
-                    •	Attribute: Color/size/material descriptions (e.g., “red clothes”, “large”)
+                    •	Attribute: Color/size/material descriptions (e.g., "red clothes", "large")
                     •	Time: Appear in different frames within a few seconds
                     •	Causal: There is a temporal order between the objects
                 
-                • Condition: Both objects in each relationship must be present in the extracted Key Objects and Cue Objects.
+                • Condition: Both objects in each relationship must be present in the
+                extracted Key Objects and Cue Objects.
 
-                • Format: Rel: (object, relation_type, object), relation_type should be exactly one of spatial/attribute/time/causal
+                • Format: Rel: (object, relation_type, object), relation_type should be
+                exactly one of spatial/attribute/time/causal
 
                 Output Rules
                     1.	One line each for Key Objects/Cue Objects/Rel starting with exact prefixes
@@ -553,7 +577,6 @@ class VSLSUniversalGrounder:
                 temperature=temperature,
                 max_tokens=max_tokens
             )
-        # print("response: ", response)
 
         lines = response        
         lines = re.sub(r'\n+', '\\n', lines)
@@ -574,7 +597,6 @@ class VSLSUniversalGrounder:
         target_objects = self.parse_objects(lines[0])
         cue_objects = self.parse_objects(lines[1])
         relations = self.parse_relations(lines[2])
-        # print(relations)
                 
         return target_objects, cue_objects, relations
 
