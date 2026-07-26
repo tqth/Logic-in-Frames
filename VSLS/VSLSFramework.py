@@ -1,4 +1,3 @@
-
 """
 Searcher: Comprehensive Video Frame Search Tool
 
@@ -101,14 +100,43 @@ class VSLSFramework:
         self.device = device
         self.update_method = update_method
 
-        self.video_id=self.video_path.split("/")[-1].split(".")[0]
+        # HOOK: resolve_source_id() chịu trách nhiệm định danh nguồn dữ liệu để
+        # đặt tên thư mục output. Bản mặc định dưới đây dùng video_path (video);
+        # VSLSFrameworkAlbum override để dùng album_id/image_paths thay vào đó.
+        self.video_id = self.resolve_source_id()
         self.output_dir = os.path.join(self.output_dir, self.video_id)  # 视频保存路径
         # Ensure the output directory exists
         # os.makedirs(self.output_dir, exist_ok=True)
         logger.info("VideoSearcher initialized successfully.")
 
         self.results = {}
-        
+
+    def resolve_source_id(self) -> str:
+        """
+        HOOK METHOD (Template Method pattern).
+        Trả về định danh dùng để đặt tên thư mục output (self.video_id).
+
+        Bản mặc định này dành cho VIDEO: lấy tên file (không phần mở rộng) từ
+        self.video_path. Subclass (vd. VSLSFrameworkAlbum) override method này
+        để định danh theo nguồn dữ liệu khác (album ảnh) mà KHÔNG cần sửa
+        __init__ của lớp cha.
+        """
+        return self.video_path.split("/")[-1].split(".")[0]
+
+    def _grounder_source_kwargs(self) -> dict:
+        """
+        HOOK METHOD (Template Method pattern).
+        Trả về dict kwargs mô tả NGUỒN DỮ LIỆU truyền cho các method của
+        VSLSUniversalGrounder (inference_query_grounding / inference_query_grounding2 /
+        inference_query_grounding_action), được unpack bằng
+        **self._grounder_source_kwargs() tại get_grounded_objects().
+
+        Bản mặc định này dành cho VIDEO: trả về {"video_path": self.video_path}.
+        Subclass (vd. VSLSFrameworkAlbum) override để trả về kwargs khác (vd.
+        {"video_path": None, "image_paths": self.image_paths}) mà KHÔNG cần sửa
+        get_grounded_objects() của lớp cha.
+        """
+        return {"video_path": self.video_path}
 
     def run(self):
         """
@@ -146,7 +174,7 @@ class VSLSFramework:
         # For example:
         if prompt_type == "cot":
             target_objects, cue_objects, relations = self.grounder.inference_query_grounding2(
-                video_path=self.video_path,
+                **self._grounder_source_kwargs(),
                 question=self.question,
                 options=self.options,
                 upload_video=upload_video
@@ -164,13 +192,13 @@ class VSLSFramework:
             ]
 
             target_objects, cue_objects, relations = self.grounder.inference_query_grounding_action(
-                video_path=self.video_path,
+                **self._grounder_source_kwargs(),
                 candidate_classes=HMDB51_CLASSES,
                 upload_video=upload_video,
             )
         else:
             target_objects, cue_objects = self.grounder.inference_query_grounding(
-                video_path=self.video_path,
+                **self._grounder_source_kwargs(),
                 question=self.question,
                 options=self.options,
                 upload_video=upload_video
@@ -187,22 +215,31 @@ class VSLSFramework:
     
     def set_searching_targets(self, target_objects, cue_objects, relations):
         """
-        Initialize and configure the VSLSSearcher for video object search.
+        Initialize and configure the searcher for object search.
 
         Args:
-            target_objects (List[str]): List of target objects to search for in the video.
+            target_objects (List[str]): List of target objects to search for.
             cue_objects (List[str]): List of cue objects to assist in locating target objects.
 
         Returns:
-           VSLSSearcher: Configured instance of the VSLSSearcher class.
+           VSLSSearcher: Configured instance of the searcher class.
 
         Notes:
-            - The `VSLSSearcher` is responsible for performing the object search within the video
-            using the specified targets and cues.
-            - Key parameters such as the search frame limit (`search_nframes`), grid shape (`image_grid_shape`),
-            confidence threshold (`confidence_threshold`), and search budget (`search_budget`) are passed
-            to the `VSLSSearcher`.
-            - The `yolo_scorer` is used as the object detection model for evaluating the objects in the video.
+            - Việc thực sự khởi tạo searcher được ủy quyền cho hook
+              _create_searcher(), để subclass (vd. VSLSFrameworkAlbum) có thể
+              tạo VSLSAlbumSearcher thay vì VSLSSearcher mà KHÔNG cần override
+              lại toàn bộ method này.
+        """
+        return self._create_searcher(target_objects, cue_objects, relations)
+
+    def _create_searcher(self, target_objects, cue_objects, relations) -> VSLSSearcher:
+        """
+        HOOK METHOD (Template Method pattern).
+        Khởi tạo searcher dùng cho bước Search.
+
+        Bản mặc định này dành cho VIDEO: tạo VSLSSearcher với self.video_path.
+        Subclass (vd. VSLSFrameworkAlbum) override để tạo VSLSAlbumSearcher với
+        self.image_paths thay vào đó.
         """
         video_searcher = VSLSSearcher(
             video_path=self.video_path,
@@ -668,7 +705,6 @@ def main():
 
 
     
-
 
 if __name__ == "__main__":                                              
     main()
